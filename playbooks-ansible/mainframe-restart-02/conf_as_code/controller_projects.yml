@@ -1,0 +1,13 @@
+---
+controller_projects:
+  - name: "{{ aap_naming_projects }}-{{ aap_objects_suffix_description }}" # to modify but keep {{ aap_naming_projects }}
+    organization: "{{ user_organizations }}"
+    scm_type: git
+    scm_url: "{{ git_repository_url }}"
+    scm_branch: "{{ tag_version }}"
+    scm_credential: "{{ aap_naming_credentials }}-gitlab_cred" # to modify but credential must exist
+    default_environment: EE-CAGIP-CAREBOT:1.0.1
+    wait: true
+    timeout: 120
+    scm_clean: true
+    state: present

@@ -1,0 +1,12 @@
+---
+controller_templates:
+  - name: "{{ aap_naming_templates }}-{{ aap_objects_suffix_description }}" # to modify but keep {{ aap_naming_templates }}
+    project: "{{ aap_naming_projects }}-{{ aap_objects_suffix_description }}" # to modify but project must exist
+    execution_environment: EE-CAGIP-CAREBOT:1.0.1
+    description: CAC creation
+    inventory: "{{ inventaire }}" # le nom de l'inventaire isaac à definir sur Variables.yml
+    playbook: event_main.yml
+    allow_simultaneous: true
+    ask_variables_on_launch: true
+    job_type: run
+    state: present

@@ -1,0 +1,46 @@
+---
+- name: Initialisation et contrôle du contexte d'exécution
+  hosts: localhost
+  tasks:
+    - name: Initialisation et contrôle du contexte d'exécution
+      ansible.builtin.include_role:
+        name: carebot.framework.event_precheck
+
+# Remediation starts here
+- name: Import playbook
+  import_playbook: ./execution/main.yml
+  vars:
+    host1: "{{ hostvars['localhost']['host1'] }}"
+    summary: "{{ hostvars['localhost']['summary'] }}"
+    code_SI: "{{ hostvars['localhost']['code_SI'] }}"
+    tws_manage_caisse: "{{ hostvars['localhost']['tws_manage_caisse'] }}"
+    tws_manage_adid: "{{ hostvars['localhost']['tws_manage_adid'] }}"
+    tws_manage_opc: "{{ hostvars['localhost']['tws_manage_opc'] }}"
+    tws_manage_iat: "{{ hostvars['localhost']['tws_manage_iat'] }}"
+    tws_manage_status: "{{ hostvars['localhost']['tws_manage_status'] }}"
+    tws_manage_opno: "{{ hostvars['localhost']['tws_manage_opno'] }}"
+    get_sysout_jobidcare: "{{ hostvars['localhost']['get_sysout_jobidcare'] }}"
+    get_sysout_caisse: "{{ hostvars['localhost']['get_sysout_caisse'] }}"
+    get_sysout_adid: "{{ hostvars['localhost']['get_sysout_adid'] }}"
+    zowe_tech_error_file_base_name: "{{ hostvars['localhost']['zowe_tech_error_file_base_name'] }}"
+    zowe_cmd_get_sysout_var: "{{ hostvars['localhost']['zowe_cmd_get_sysout_var'] }}"
+    zowe_chdir_var: "{{ hostvars['localhost']['zowe_chdir_var'] }}"
+    z_tech_errors: "{{ hostvars['localhost']['z_tech_errors'] }}"
+    zowe_cmd_TWS_manage_var: "{{ hostvars['localhost']['zowe_cmd_TWS_manage_var'] }}"
+    found_ip: "{{ hostvars['localhost']['found_ip'] }}"
+    severity: "{{ hostvars['localhost']['severity'] }}"
+    groupe_escalade: "{{ hostvars['localhost']['groupe_escalade'] }}"
+    eqq7_check: "{{ hostvars['localhost']['eqq7_check'] }}"
+    max_step: "{{ hostvars['localhost']['max_step'] }}"
+    tws_action: "{{ hostvars['localhost']['tws_action'] }}"
+    op_exec_rc: "{{ hostvars['localhost']['op_exec_rc'] }}"
+    code_rc: "{{ hostvars['localhost']['code_rc'] }}"
+    tempo: "{{ hostvars['localhost']['tempo'] }}"
+  when: hostvars['localhost']['exec_rc'] == 0
+
+- name: Get results
+  hosts: localhost
+  tasks:
+    - name: Format results
+      ansible.builtin.include_role:
+        name: carebot.framework.event_results

@@ -1,0 +1,42 @@
+---
+aap_organization_input: ORG_CAGIP_TRV_CAREBOT # variable OBLIGATOIRE
+aap_objects_suffix_description: mainframe-restart-02 # variable facultative, donnera par exemple les noms PRJ-CAGIP-ISAAC-test-description-a-changer ou INV-ISAAC-test-description-a-changer ou JT-CAGIP-ISAAC-test-description-a-changer
+aap_confascode_enable_logs: true # variable booléenne facultative, pour active plus de logs
+# variable des chemins vault selon env HORS SIA ou SIA
+# hvault_path_env_DEV: qualif-intranet # exemple
+# hvault_path_env_PROD: prd-intranet # exemple
+# hvault_path_env: "{{ lookup('vars', 'hvault_path_env_' ~ gitenv) }}" # gitenv est une variable enrichie par la CICD et prend comme valeur DEV ou PROD (selon le gitlab Hors SIA ou SIA)
+
+inventaire_LinuxUnix_DEV: INV-LINUX-BUILD-AAP-DEV-snowmirror_la-linuxunix-hors_prod
+inventaire_Windows_DEV: INV-LINUX-BUILD-AAP-DEV-snowmirror_la-windows-hors_prod
+inventaire_LinuxUnix_PROD: ZOWE_OAPS_Inventory
+inventaire_Windows_PROD: LA_SnowMirror_windows-prod_no3PG_v002
+inventaire: "{{ lookup('vars', 'inventaire_LinuxUnix_' ~ gitenv) }}" # gitenv est une variable enrichie par la CICD et prend comme valeur DEV ou PROD (selon le gitlab Hors SIA ou SIA)
+
+oaps_auth_DEV: OAPS_AUTH_OAPSHUB_HOMOL
+oaps_auth_PROD: OAPS_AUTH_OAPSHUB
+oaps_auth: "{{ lookup('vars', 'oaps_auth_' ~ gitenv) }}"
+
+# variable des chemins vault
+hvault_path_env_DEV: cagip/carebot_proj/tradi/rct-intranet/GITLAB-user
+hvault_path_env_PROD: cagip/carebot_proj/tradi/prd-intranet/GITLAB-user
+
+hvault_path_env: "{{ lookup('vars', 'hvault_path_env_' ~ gitenv) }}"
+
+# Credential Gitlab qu'on récupère sur Hashicorp vault
+hv_gitlab_user: "{{ lookup('community.hashi_vault.vault_kv2_get', hvault_path_env, auth_method='approle', role_id=ansible_env.HASHICORP_VAULT_ROLE_ID, secret_id=ansible_env.HASHICORP_VAULT_SECRET_ID, url=hashi_vault_addr, validate_certs=false)['secret']['username'] }}"
+hv_gitlab_pass: "{{ lookup('community.hashi_vault.vault_kv2_get', hvault_path_env, auth_method='approle', role_id=ansible_env.HASHICORP_VAULT_ROLE_ID, secret_id=ansible_env.HASHICORP_VAULT_SECRET_ID, url=hashi_vault_addr, validate_certs=false)['secret']['password'] }}"
+
+# hv_git_ssh: "{{ lookup('community.hashi_vault.vault_kv2_get', 'cagip/qdp_los_angeles/tradi/qualif-intranet/test_git', auth_method='approle', role_id=ansible_env.HASHICORP_VAULT_ROLE_ID, secret_id=ansible_env.HASHICORP_VAULT_SECRET_ID, url=hashi_vault_addr, validate_certs=false)['secret']['ssh_key'] }}"
+# hv_git_passphrase: "{{ lookup('community.hashi_vault.vault_kv2_get', 'cagip/qdp_los_angeles/tradi/qualif-intranet/test_git', auth_method='approle', role_id=ansible_env.HASHICORP_VAULT_ROLE_ID, secret_id=ansible_env.HASHICORP_VAULT_SECRET_ID, url=hashi_vault_addr, validate_certs=false)['secret']['passphrase'] }}"
+
+# Les variables suivantes récupèrent le contenu dans les secrets Hashicorp Vault, utilisable dans la conf as code.
+# Exemple avec le chemin vault 'cagip/qdp_los_angeles/tradi/qualif-intranet/test_ccp', qui récupère les secret de 'test_ccp' et qui comporte les clés 'ccp_appid', 'ccp_cert' et 'ccp_priv_key'
+# Seul le chemin vault doit être changé et les noms de clés
+# hv_ccp_url: "{{ lookup('community.hashi_vault.vault_kv2_get', 'cagip/qdp_los_angeles/tradi/{{ hvault_path_env }}/test_ccp', auth_method='approle', role_id=ansible_env.HASHICORP_VAULT_ROLE_ID, secret_id=ansible_env.HASHICORP_VAULT_SECRET_ID, url=hashi_vault_addr, validate_certs=false)['secret']['ccp_url'] }}"
+
+# hv_ccp_appid: "{{ lookup('community.hashi_vault.vault_kv2_get', 'cagip/qdp_los_angeles/tradi/{{ hvault_path_env }}/test_ccp', auth_method='approle', role_id=ansible_env.HASHICORP_VAULT_ROLE_ID, secret_id=ansible_env.HASHICORP_VAULT_SECRET_ID, url=hashi_vault_addr, validate_certs=false)['secret']['ccp_appid'] }}"
+
+# hv_ccp_cert: "{{ lookup('community.hashi_vault.vault_kv2_get', 'cagip/qdp_los_angeles/tradi/{{ hvault_path_env }}/test_ccp', auth_method='approle', role_id=ansible_env.HASHICORP_VAULT_ROLE_ID, secret_id=ansible_env.HASHICORP_VAULT_SECRET_ID, url=hashi_vault_addr, validate_certs=false)['secret']['ccp_cert'] }}"
+
+# hv_ccp_priv_key: "{{ lookup('community.hashi_vault.vault_kv2_get', 'cagip/qdp_los_angeles/tradi/{{ hvault_path_env }}/test_ccp', auth_method='approle', role_id=ansible_env.HASHICORP_VAULT_ROLE_ID, secret_id=ansible_env.HASHICORP_VAULT_SECRET_ID, url=hashi_vault_addr, validate_certs=false)['secret']['ccp_priv_key'] }}"

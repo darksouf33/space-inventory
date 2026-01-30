@@ -1,0 +1,9 @@
+---
+collections:
+  - name: carebot.framework
+  - name: community.postgresql
+    version: 4.1.0
+  - name: community.general
+    version: 10.7.4
+  - name: carebot.mainframe
+  - name: carebot.mails

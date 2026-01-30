@@ -1,0 +1,20 @@
+# ---
+
+# controller_inventories:
+#   - name: "{{ aap_naming_inventories }}-{{ aap_objects_suffix_description }}" # to modify but keep {{ aap_naming_inventories }}
+#     organization: "{{ user_organizations }}"
+#     state: present
+
+# controller_inventory_sources:
+#   - name: "INV-SOURCE-{{ user_organizations.split('_')[3] }}-{{ aap_objects_suffix_description }}" # to modify
+#     source: scm
+#     source_project: "{{ aap_naming_projects }}-{{ aap_objects_suffix_description }}" # to modify but project must exist
+#     source_path: inventory_DEV.ini # to modify
+#     description: Source for inventory
+#     organization: "{{ user_organizations }}"
+#     inventory: "{{ aap_naming_inventories }}-{{ aap_objects_suffix_description }}" # to modify but inventory must exist
+#     overwrite: true
+#     update_on_launch: true
+#     update_cache_timeout: 0
+#     state: present
+#     wait: true

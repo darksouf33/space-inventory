@@ -1,0 +1,4 @@
+/collections/*
+/roles/*
+!/collections/requirements.yml
+!/roles/requirements.yml

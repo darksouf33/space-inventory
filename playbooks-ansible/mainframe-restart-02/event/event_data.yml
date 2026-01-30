@@ -1,0 +1,14 @@
+---
+# Extract data from event
+summary: "{{ event_data['summary'] | default('') }}"
+host1: "{{ event_data['hostname'] | default('') }}"
+cr_value: "{{ event_data['hostname'] | default('') | upper }}"
+zowe_server: "{{ param_consigne['zowe_server'] | default('') | lower }}"
+escgrp1: "{{ param_consigne['escgrp1'] | default('') }}"
+app_support_group_list: "{{event_data['app_support_group_list'] | default('')}}"
+severity: "{{ event_data['severity'] | default('') }}"
+num_step: "{{ event_data['numStep'] | default('') }}"
+max_step: "{{ param_consigne['step_max'] | default('') | lower }}"
+CMD_Si_Ko: "{{ param_consigne['CMD_Si_Ko'] | default('') }}"
+close: "{{ param_consigne['close'] | default('') }}"
+tempo: "{{ param_consigne['wait'] | default('') }}"

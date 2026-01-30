@@ -1,0 +1,95 @@
+---
+- name: Get param_consigne
+  ansible.builtin.set_fact:
+    param_consigne: "{{ event_data['param_consigne'] }}"
+    eqq7_check: false
+    Check_cmd: ""
+    closure: false
+    close: "{{ param_consigne['close'] | default('') }}"
+
+- name: Extract event data 2
+  ansible.builtin.set_fact:
+    escgrp1: "{{ param_consigne['escgrp1'] | default('') }}"
+    After_restart: "{{ param_consigne['CMD_Si_Ko'] | default('') | upper }}"
+
+- name: Check close
+  ansible.builtin.set_fact:
+    closure: true
+  when: close is regex('oui')
+
+- name: Max_step
+  ansible.builtin.set_fact:
+    max_step: "{{ max_step | int + 1 | int }}"
+
+- name: Extract param_consigne
+  ansible.builtin.set_fact:
+    # Code SI permettant de préciser le fichier des erreurs techniques.
+    code_SI: "{{ param_consigne['code_si'] | default('valeur') }}"
+    # RESTART / COMPLETE
+    tws_manage_status: RESTART
+    group_support: "{{ escgrp1 }}"
+    groupe_escalade: "{{ escgrp1 }}"
+
+- name: Check param CMD_Si_Ko
+  ansible.builtin.set_fact:
+    Check_cmd: false
+    eqq7_check: false
+  when: CMD_Si_Ko != "COMPLETE" or CMD_Si_Ko != "Laisser-en-etat" or CMD_Si_Ko != "Retour_pilote"
+
+- name: Afficher EQQ7
+  ansible.builtin.debug:
+    var: eqq7_check
+
+- name: Check EQQ7
+  ansible.builtin.set_fact:
+    eqq7_check: true
+  when: summary is regex('EQQ7INIT') or summary is regex('EQQ7FLAG')
+
+- name: Afficher EQQ7
+  ansible.builtin.debug:
+    var: eqq7_check
+
+# Extration du summary
+- name: Extract summary1 name from summary
+  ansible.builtin.set_fact:
+    summary1: "{{ event_data.summary.split('_') | list }}"
+  when: summary is regex('EQQ7')
+
+# longueur du summary 1
+- name: longueur summary
+  ansible.builtin.set_fact:
+    longueur: "{{ summary1 | length | int}}"
+  when: summary1 is defined
+
+# longueur du summary 1 -1
+- name: longueur - 1 summary
+  ansible.builtin.set_fact:
+    postition: "{{ longueur | int - 1 }}"
+  when: summary1 is defined
+
+# Extration du summary 2
+- name: Extract summary2 name from summary
+  ansible.builtin.set_fact:
+    summary2: "{{ summary1[postition | int].split('-') | list }}"
+  when: summary1 is defined
+
+# Valorisation des variables d'entrées
+- name: Set imput variables 1
+  ansible.builtin.set_fact:
+    # Client issue de l’alerte sur 4 caractères (EX: TET8)
+    cr_value: "{{ host1 }}"
+    # Le nom de l’application (en général sur 6 positions mais il y a des exceptions). (EX: ZERROR)
+    tws_manage_adid: "{{ summary2[4] }}"
+    # Nom du contrôleur TWS sur 4 positions. (EX: S806)
+    tws_manage_opc: "{{ summary2[3] }}"
+    # L’IATime sur 10 positions. (EX: 2207131100)
+    tws_manage_iat: "{{ summary2[6] | replace('(', '') |  replace(')', '') }}"
+    # RESTART / COMPLETE / STAY
+    tws_manage_status: RESTART
+    # Numéro d’opération sur 3 positions. (EX: 010)
+    tws_manage_opno: "{{ summary2[5] }}"
+    # jobid issu de l’alerte (EX : JOB11402)
+    get_sysout_jobidcare: "{{ summary1[4] }}"
+    # Nom du job issu de l’alerte (EX : TEZERROR)
+    get_sysout_adid: "{{ summary2[4] }}"
+  when: summary2 is defined

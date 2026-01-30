@@ -1,0 +1,5 @@
+---
+# Variables to check
+required_event_variables:
+  - escgrp1 | default('') |  length > 0
+  - summary | default('') |  string | length > 0

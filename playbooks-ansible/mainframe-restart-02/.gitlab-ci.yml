@@ -1,0 +1,4 @@
+include:
+  - project: '$GITLAB_CI_PATH_INCLUDE_ANSIBLE'
+    file: playbook_include.yml
+    ref: main

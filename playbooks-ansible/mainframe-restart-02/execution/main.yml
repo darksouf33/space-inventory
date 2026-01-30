@@ -1,0 +1,362 @@
+---
+- name: Initialisation et exécution conditionnelle
+  hosts: localhost
+  ignore_errors: true
+  tasks:
+    - name: Résoudre le dossier des fichiers communs carebot.framework
+      vars:
+        coll_roots_env: >-
+          {{ (lookup('ansible.builtin.env','ANSIBLE_COLLECTIONS_PATHS')
+               | default('', true) | string).split(':')
+             | reject('equalto','') | list }}
+        candidates: >-
+          {{
+            (coll_roots_env | map('regex_replace', '$',
+               '/ansible_collections/carebot/framework/roles/common_files/files') | list)
+            + [
+                playbook_dir + '/collections/ansible_collections/carebot/framework/roles/common_files/files',
+                lookup('ansible.builtin.env','HOME') + '/.ansible/collections/ansible_collections/carebot/framework/roles/common_files/files',
+                '/usr/share/ansible/collections/ansible_collections/carebot/framework/roles/common_files/files',
+                '/var/lib/awx/.ansible/collections/ansible_collections/carebot/framework/roles/common_files/files'
+              ]
+          }}
+      block:
+        - name: Chercher le premier dossier existant
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          loop: "{{ candidates }}"
+          register: st_coll_files
+
+        - name: Fixer le dossier
+          ansible.builtin.set_fact:
+            collection_common_files_dir: >-
+              {{ (st_coll_files.results
+                  | selectattr('stat.exists') | map(attribute='item') | list | first) }}
+
+    - name: Initialiser les variables du workflow
+      ansible.builtin.set_fact:
+        short_msg: ""
+        long_msg: ""
+        retour_pilote: false
+        escalade: false
+        astreinte: false
+        groupe_astreinte: ""
+        ticket_creation: false
+        tws_action: true
+        op_exec_rc: ""
+        code_rc: ""
+        mail_code_error: ""
+
+    - name: Change tws_action to RESTART
+      ansible.builtin.set_fact:
+        tws_manage_status: RESTART
+        tws_action: true
+
+    - name: Change tws_action to COMPLETE
+      ansible.builtin.set_fact:
+        tws_manage_status: "{{ CMD_Si_Ko }}"
+        tws_action: true
+      when: (num_step | int >= max_step | int) and CMD_Si_Ko == "COMPLETE"
+
+    - name: Change tws_action to laisser en état
+      ansible.builtin.set_fact:
+        tws_manage_status: "{{ CMD_Si_Ko }}"
+        tws_action: false
+      when: (num_step | int >= max_step | int) and CMD_Si_Ko == "Laisser-en-etat"
+
+    - name: Change tws_action to Retour_pilote
+      ansible.builtin.set_fact:
+        tws_manage_status: "{{ CMD_Si_Ko }}"
+        tws_action: false
+      when: (num_step | int >= max_step | int) and CMD_Si_Ko == "Retour_pilote"
+
+    - name: Init variables de traitement locaux
+      ansible.builtin.set_fact:
+        exec_rc: 0
+        exec_changed: false
+        exec_success: false
+        zowe_tech_error_file_base_name: "{{ collection_common_files_dir }}/sysout_tech_errors_"
+        lpm_ip: "{{ collection_common_files_dir }}/LPM-IP.txt"
+
+    - name: Set errors file name
+      ansible.builtin.set_fact:
+        error_file_name: "{{ zowe_tech_error_file_base_name + code_SI + '.txt' }}"
+
+    - name: Load file
+      ansible.builtin.set_fact:
+        z_tech_errors: >-
+          {{ lookup('ansible.builtin.file', error_file_name)
+          | regex_replace('\r','') | split('\n') }}
+        read_lpm_ip: "{{ collection_common_files_dir }}/LPM-IP.txt"
+
+    - name: Lire fichier
+      slurp:
+        src: "{{ lpm_ip }}"
+      register: lpm_ip_content
+
+    - name: Extract line
+      ansible.builtin.set_fact:
+        lpm_ip_lines: "{{ lpm_ip_content['content'] | b64decode | split('\n') }}"
+
+    - name: Parcourir ligne
+      ansible.builtin.set_fact:
+        found_ip: "{{ item.split(';')[1] }}"
+      loop: "{{ lpm_ip_lines }}"
+      when: cr_value | upper == item.split(';')[0]
+
+    - name: Affiche IP
+      ansible.builtin.set_fact:
+        tws_manage_caisse: "{{ cr_value }}"
+        get_sysout_caisse: "{{ cr_value }}"
+
+    - name: Afficher EQQ7
+      ansible.builtin.debug:
+        var: eqq7_check
+
+######################################################################################################################
+- hosts: "{{ hostvars['localhost']['zowe_server'] }}"
+  tasks:
+    - name: Init variables script Zowe
+      ansible.builtin.set_fact:
+        zowe_cmd_get_sysout_var: ./Zowe-Sysout.sh
+        zowe_chdir_var: /app/list/care_oaps/zowe/scripts/DEV/V1.00.0
+        zowe_cmd_TWS_manage_var: ./Zowe-TWS.sh
+        op_exec_rc: ""
+
+    - name: Call oaps_prim_check_sysout_tech_error
+      ansible.builtin.include_role:
+        name: carebot.mainframe.check_sysout_tech_error
+      when: eqq7_check
+
+    - name: Temporisation de l'action
+      ansible.builtin.pause:
+        minutes: "{{ [tempo | int, 30] | min }}"
+      when: tempo | int > 0
+
+    - name: Call oaps_prim_manage_tws_job when tws_manage_status is RESTART
+      ansible.builtin.include_role:
+        name: carebot.mainframe.manage_tws_job
+      when: op_exec_rc == 0 and ( severity | int != 0 ) and eqq7_check and tws_action
+
+######################################################################################################################
+- hosts: localhost
+  tasks:
+    - name: SET op_exec_rc Zowe
+      ansible.builtin.set_fact:
+        my_op_exec_rc: "{{ hostvars[zowe_server]['op_exec_rc'] }}"
+        my_sysout_tech_error_line: "{{ hostvars[zowe_server]['sysout_tech_error_line'] }}"
+        my_rc_value: "{{ hostvars[zowe_server]['rc_value'] | string}}"
+        my_rc_line: "{{ hostvars[zowe_server]['rc_line'] }}"
+      ignore_errors: true
+      when: eqq7_check
+
+    - name: Integer to String
+      ansible.builtin.set_fact:
+        rc_value: "{{ my_rc_value | regex_replace('[^0-9]', '') }}"
+      when: eqq7_check and my_rc_value
+
+    - name: EQQ7 false
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Alerte non EQQ7INIT ou EQQ7FLAG, retour pilotage' }}"
+        long_msg: "{{ 'Alerte non EQQ7INIT ou EQQ7FLAG, retour pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+      when: not eqq7_check
+
+    - name: RESTART
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Restart du JOB : ' + tws_manage_adid + ' avec succés et escalade vers: ' + groupe_escalade }}"
+        long_msg: "{{ 'Restart du JOB : ' + tws_manage_adid + ' avec succés et escalade vers: ' + groupe_escalade }}"
+        astreinte: false
+        escalade: true
+        retour_pilote: false
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int) == 0 and (severity | int == 0) and eqq7_check and not closure
+
+    - name: RESTART closure
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Restart du JOB : ' + tws_manage_adid + ' avec succés et escalade vers: ' + groupe_escalade }}"
+        long_msg: "{{ 'Restart du JOB : ' + tws_manage_adid + ' avec succés et escalade vers: ' + groupe_escalade }}"
+        astreinte: false
+        escalade: true
+        retour_pilote: false
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int) == 0 and (severity | int == 0) and eqq7_check and closure
+
+    - name: RESTART PENDING
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Restart du JOB : ' + tws_manage_adid + ' en attente du retour Care' }}"
+        long_msg: "{{ 'Restart du JOB : ' + tws_manage_adid + ' en attente du retour Care' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: false
+        exec_rc: 9999
+        exec_success: true
+      when: (my_op_exec_rc | int) == 0 and (num_step | int < max_step | int) and (severity | int !=0) and eqq7_check
+
+    - name: RESTART MAX PENDING
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Max restart du JOB : ' + tws_manage_adid + ' Retour pilotage'}}"
+        long_msg: "{{ 'Nombre maximum de reprises atteintes pour le JOB : ' + tws_manage_adid + ' Retour pilotage'}}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int) == 0 and (num_step | int >= max_step | int) and (severity | int !=0) and tws_manage_status != "COMPLETE"
+
+    - name: COMPLETE after restart
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Mise à COMPLETE du JOB : ' + tws_manage_adid + ' après restart en echec, et escalade vers: ' + groupe_escalade }}"
+        long_msg: "{{ 'Mise à COMPLETE du JOB : ' + tws_manage_adid + ' après restart en echec, et escalade vers: ' + groupe_escalade }}"
+        astreinte: false
+        escalade: true
+        retour_pilote: false
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int)  == 0 and (num_step | int >= max_step | int) and tws_manage_status == "COMPLETE"
+
+    - name: laissé en état
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'JOB : ' + tws_manage_adid + ' laissé en état, retour vers le pilotage' }}"
+        long_msg: "{{ 'JOB : ' + tws_manage_adid + ' laissé en état, retour vers le pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int)  == 0 and (num_step | int >= max_step | int) and not tws_action
+
+    - name: param non conforme
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Le paramètre CMD_Si_Ko non conforme, retour pilotage' }}"
+        long_msg: "{{ 'Le paramètre CMD_Si_Ko non conforme, retour pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+      when: not Check_cmd and not eqq7_check
+
+    - name: retour pilotage
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Restart du JOB : ' + tws_manage_adid + ' en échec, retour vers le pilotage' }}"
+        long_msg: "{{ 'Restart du JOB : ' + tws_manage_adid + ' en échec, retour vers le pilotage' }}"
+        astreinte: false
+        escalade: true
+        retour_pilote: false
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int)  == 0 and (num_step | int >= max_step | int) and not tws_action
+
+    - name: Error code in sysout
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Erreur technique voir ticket METIS' }}"
+        long_msg: "{{ 'Erreur technique : ' + my_sysout_tech_error_line }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int) == 402
+
+    - name: Error 400
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Erreur sur le robot, reprise manuelle de la consigne par le pilotage' }}"
+        long_msg: "{{ 'Erreur sur le robot, reprise manuelle de la consigne par le pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int) == 400
+
+    - name: Error 401
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Erreur sur API Zowe, reprise manuelle de la consigne par le pilotage' }}"
+        long_msg: "{{ 'Erreur sur API Zowe, reprise manuelle de la consigne par le pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+      when: (my_op_exec_rc | int) == 401
+
+    - name: Error 408
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Nombre de paramètre du script Zowe incorrecte, reprise manuelle de la consigne par le pilotage' }}"
+        long_msg: "{{ 'Nombre de paramètre du script Zowe incorrecte, reprise manuelle de la consigne par le pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+        mail_code_error: "{{ my_op_exec_rc }}"
+      when: (my_op_exec_rc | int) == 408
+
+    - name: Error 409
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Erreur lors de la création du PDS Zowe, reprise manuelle de la consigne par le pilotage' }}"
+        long_msg: "{{ 'Erreur lors de la création du PDS Zowe, reprise manuelle de la consigne par le pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+        mail_code_error: "{{ my_op_exec_rc }}"
+      when: (my_op_exec_rc | int) == 409
+
+    - name: Error 410
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Erreur pas de Sysout pour le Job, reprise manuelle de la consigne par le pilotage' }}"
+        long_msg: "{{ 'Erreur pas de Sysout pour le Job, reprise manuelle de la consigne par le pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+        mail_code_error: "{{ my_op_exec_rc }}"
+      when: (my_op_exec_rc | int) == 410
+
+    - name: Error 420
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'Erreur sur API Zowe keyring fermer, reprise manuelle de la consigne par le pilotage' }}"
+        long_msg: "{{ 'Erreur sur API Zowe keyring fermer, reprise manuelle de la consigne par le pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+        mail_code_error: "{{ my_op_exec_rc }}"
+      when: (my_op_exec_rc | int) == 420
+
+    - name: Error 430
+      ansible.builtin.set_fact:
+        short_msg: "{{ 'tentativr de mise à COMPLETE du JOB : ' + tws_manage_adid + ' , RC=' + (my_rc_value | string) + ' , retour pilotage' }}"
+        long_msg: "{{ 'tentativr de mise à COMPLETE du JOB : ' + tws_manage_adid + ' , RC=' + (my_rc_value | string) + ' , retour pilotage' }}"
+        astreinte: false
+        escalade: false
+        retour_pilote: true
+        exec_rc: 2
+        exec_success: true
+        mail_code_error: "{{ my_op_exec_rc }}"
+      when: (my_op_exec_rc | int) == 430
+
+    - name: Send mail to ROD
+      ansible.builtin.include_role:
+        name: carebot.mails.send_mail
+      vars:
+        sendmail_host: federateur-applis.prodinfo.gca
+        sendmail_port: 25
+        sendmail_from: noreply@ca-gip.fr
+        sendmail_to: christophe.mercadie@ca-gip.fr
+        sendmail_cc: soufian.lahdili-ext@ca-gip.fr
+        sendmail_subject: Error Zowe keyring
+        sendmail_body: "{{ la demande d'automatisation mainframe est annulée pour cause de keyring fermé }}"
+        sendmail_charset: UTF-8
+      when: (my_op_exec_rc | int) == 420
