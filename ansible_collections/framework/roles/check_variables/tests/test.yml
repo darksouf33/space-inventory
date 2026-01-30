@@ -1,0 +1,6 @@
+---
+- name: Test check variables
+  hosts: localhost
+  remote_user: root
+  roles:
+    - carebot.framework.check_variables

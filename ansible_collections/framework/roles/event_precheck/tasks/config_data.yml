@@ -1,0 +1,44 @@
+---
+- name: Configuration validation
+  block:
+
+    - name: Set file names
+      ansible.builtin.set_fact:
+        vars_fname: "{{ playbook_filepath + '/config/config_data.yml' }}"
+        tasks_fname: "{{ playbook_filepath + '/config/config_data_tasks.yml' }}"
+        control_fname: "{{ playbook_filepath + '/config/config_control.yml' }}"
+
+    - name: Get variables from config - vars format
+      ansible.builtin.include_vars: "{{ vars_fname }}"
+      when: vars_fname is file
+
+    - name: Get variables from config - tasks format
+      ansible.builtin.include_tasks: "{{ tasks_fname }}"
+      when: tasks_fname is file
+
+    - name: Get controls
+      ansible.builtin.include_vars: "{{ control_fname }}"
+      when: control_fname is file
+
+    - name: Check config variable
+      ansible.builtin.include_role:
+        name: carebot.framework.check_variables
+      vars:
+        check_variables_var_to_check: "{{ required_config_variables | default([]) }}"
+
+    - name: Set results if KO
+      when: not op_exec_success
+      ansible.builtin.set_fact:
+        exec_rc: 201
+        short_msg: "{{ 'Execution failed - Extract config data stage: ' + op_short_msg }}"
+        long_msg: "{{ 'Execution failed - Extract config data stage: ' + op_short_msg }}"
+
+  rescue:
+    - name: Handle configuration validation error
+      ansible.builtin.set_fact:
+        exec_rc: 201
+        short_msg: "{{ 'Execution failed - Extract config data stage: Unknown error' }}"
+        long_msg: "{{ 'Execution failed - Extract config data stage: Unknown error' }}"
+
+    - name: Clear host
+      ansible.builtin.meta: clear_host_errors

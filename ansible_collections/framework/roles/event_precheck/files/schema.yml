@@ -1,0 +1,64 @@
+---
+
+type: object
+properties:
+  testint:
+    description: testing integer
+    type: integer
+    default: 50
+    maximum: 100
+    minimum: 0
+  teststring:
+    description: testing string
+    type: string
+    pattern: ^\w+$
+  testbool:
+    description: testing bool
+    type: boolean
+  testdict:
+    description: testing dictionary
+    type: object
+    properties:
+      dictint:
+        description: integer in dictionary
+        type: integer
+        default: 50
+        maximum: 100
+        minimum: 0
+      dictstring:
+        description: string in dictionary
+        type: string
+        pattern: ^\w+$
+  testarr:
+    description: testing array
+    type: array
+    items:
+      - type: string
+      - type: number
+  testenum:
+    description: testing enum string
+    enum: "[red, green, blue]"
+  testtemplated:
+    type: integer
+    default: 50
+    maximum: 100
+    minimum: 0
+  testnestedtemplate:
+    type: string
+    pattern: ^\w+$
+  cagip_filesystem_purge_config2:
+    type: string
+  cagip_filesystem_purge_actions:
+    description: Liste des opérations admises
+    type: array
+    items:
+      type: object
+      properties:
+        fs:
+          type: string
+        starting_path:
+          type: string
+        patterns:
+          type: array
+          items:
+            type: string

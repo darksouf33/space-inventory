@@ -1,0 +1,8 @@
+SQLCODE = - 904;                                              
+UNAVAILABLE RESOURCE;                                         
+SQLCODE = - 911;                                              
+DUE TO DEADLOCK OR TIMEOUT;   
+UTILITY DATA BASE SERVICES MEMORY EXECUTION ABENDED
+DATA SET ALREADY USED FOR PREVIOUS IMAGE COPY;               
+ERREUR - 911;                                                 
+ERREUR - 907;                                                 

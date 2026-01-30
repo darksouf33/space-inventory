@@ -1,0 +1,5 @@
+SQLCODE = - 904;                                              
+UNAVAILABLE RESOURCE;                                         
+SQLCODE = - 911;                                              
+DUE TO DEADLOCK OR TIMEOUT;                                  
+    

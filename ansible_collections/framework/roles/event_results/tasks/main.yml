@@ -1,0 +1,108 @@
+---
+# Formatage et transfert des résultats vers OAPS
+- name: Closure code Remediation with Corrective Closure
+  ansible.builtin.set_fact:
+    ticket_closure_code: Remediation with Corrective Closure
+    workflow_status: RESOLVED
+  when: exec_rc | int == 0 and exec_changed == 1
+
+- name: Closure code Remediation with Validation Closure
+  ansible.builtin.set_fact:
+    ticket_closure_code: Remediation with Validation Closure
+    workflow_status: RESOLVED
+  when: exec_rc | int == 0 and exec_changed == 0
+
+- name: Closure code Diagnosis
+  ansible.builtin.set_fact:
+    ticket_closure_code: Diagnosis
+    workflow_status: TRANSFER
+  when: exec_rc | int == 2
+
+- name: Closure code Escalation - Automata Execution Interrupted
+  ansible.builtin.set_fact:
+    ticket_closure_code: Escalation - Automata Execution Interrupted
+    workflow_status: TRANSFER
+  when: exec_rc | int >= 200 and exec_rc | int <=299
+
+- name: Closure code Diagnosis when Remediation Failed
+  ansible.builtin.set_fact:
+    ticket_closure_code: Diagnosis when Remediation Failed
+    workflow_status: TRANSFER
+  when: exec_rc | int >= 300 and exec_rc | int < 9999
+
+- name: Pending
+  ansible.builtin.set_fact:
+    ticket_closure_code: Waiting for global transaction to continue
+    workflow_status: PENDING
+  when: exec_rc | int >= 9999
+
+- name: Display values
+  ansible.builtin.debug:
+    msg: "{{ 'Closure Code : ' + ticket_closure_code + '\n exec_rc : ' + exec_rc | string + '\n short_msg : ' + short_msg + '\n long_msg : ' + long_msg + '\n' }}"
+
+- name: Set lowercase body (passe Ansible Lint)
+  ansible.builtin.set_fact:
+    body_base:
+      requestId: "{{ request_id }}"
+      jobId: "{{ tower_job_id }}"
+      short_msg: "{{ short_msg }}"
+      long_msg: "{{ long_msg }}"
+      status: "{{ ticket_closure_code }}"
+      closure_code: "{{ ticket_closure_code }}"
+      escalade: "{{ escalade }}"
+      astreinte: "{{ astreinte }}"
+      ticket_creation: "{{ ticket_creation }}"
+      retour_pilote: "{{ retour_pilote }}"
+      return_code: "{{ exec_rc | string }}"
+      workflow_status: "{{ workflow_status }}"
+    cacheable: true
+
+- name: Capitalize workflow_status key for API
+  ansible.builtin.set_fact:
+    body: "{{ body_base | combine({'Workflow_status': body_base.workflow_status}) | dict2items | rejectattr('key', 'equalto', 'workflow_status') | list | items2dict }}"
+
+- name: Add groupe escalade
+  ansible.builtin.set_fact:
+    body: "{{ body | combine({'groupe_escalade': groupe_escalade}) }}"
+  when: groupe_escalade | default('') | length > 0
+
+- name: Add groupe astreinte
+  ansible.builtin.set_fact:
+    body: "{{ body | combine({'groupe_astreinte': groupe_astreinte}) }}"
+  when: groupe_astreinte | default('') | length > 0
+
+- name: Add long_msg2
+  ansible.builtin.set_fact:
+    body: "{{ body | combine({'long_msg2': long_msg2}) }}"
+  when: long_msg2 | default('') | length > 0
+
+- name: Display body
+  ansible.builtin.debug:
+    var: body
+
+- name: Myresult
+  ansible.builtin.set_fact:
+    dummy: value
+  with_items: "{{ body | to_json }}"
+
+- name: Send results to oapshub
+  delegate_to: localhost
+  become: false
+  ansible.builtin.uri:
+    url: "{{ notification_url }}"
+    method: POST
+    return_content: "true"
+    body: "{{ body | to_json }}"
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ oaps_token }}"
+      Content-Type: application/json
+    validate_certs: "no"
+  register: uri_response
+  until: uri_response.status == 200
+  retries: 3
+  delay: 1
+
+  ignore_errors: false
+
+  when: local_only is not defined

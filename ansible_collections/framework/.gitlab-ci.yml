@@ -1,0 +1,5 @@
+---
+include:
+  - project: '$GITLAB_CI_PATH_INCLUDE_ANSIBLE'
+    file: collection_include.yml
+    ref: main

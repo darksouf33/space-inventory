@@ -1,0 +1,130 @@
+---
+# tasks file for OAPS_prim_get_sysout
+- name: Init values
+  ansible.builtin.set_fact:
+    op_exec_success: false
+    op_exec_changed: false
+    op_short_msg: ""
+    op_long_msg: ""
+    op_exec_rc: 0
+    rc_value_2: ""
+    rc_value: ""
+
+########################################################################################
+- name: Start
+  block:
+    - name: Check all mandatory variables are defined
+      ansible.builtin.assert:
+        that:
+          - zowe_cmd_get_sysout_var is defined
+          - zowe_chdir_var is defined
+          - get_sysout_caisse is defined
+          - get_sysout_adid is defined
+          - get_sysout_jobidcare is defined
+          - found_ip is defined
+
+    - name: Commande shell script
+      ansible.builtin.shell:
+        cmd: "source /home/zoweadm/.zowe_profile && {{ zowe_cmd_get_sysout_var }} {{ get_sysout_caisse }} {{ get_sysout_adid }} {{ get_sysout_jobidcare }} {{ found_ip }}"
+      args:
+        chdir: "{{ zowe_chdir_var }}"
+      ignore_errors: true
+      register:
+        sysout_result
+
+    - name: Display sysout
+      ansible.builtin.debug:
+        var:
+          sysout_result
+
+    - name: RC validation
+      ansible.builtin.set_fact:
+        rc_value: "{{ sysout_result.stdout_lines | regex_search('RC=(\\d+)', '\\1') }}"
+        rc_value_2: "{{ sysout_result.stdout | regex_search('ENDED WITH RC\\((\\d+)\\)', '\\1') | first | default('0')}}"
+        rc_line: "{{ sysout_result.stdout_lines | regex_search('(^.*RC=\\d+.*)', '\\1', multiline=True) }}"
+      ignore_errors: true
+
+    - name: RC validation MAX
+      ansible.builtin.set_fact:
+        rc_value_max: "{{ [rc_value | int, rc_value_2| int] |max }}"
+      ignore_errors: true
+      when: rc_value_2 and ( rc_value_2 | int > 0 )
+
+    - name: RC validation final
+      ansible.builtin.set_fact:
+        rc_value: "{{ rc_value_max | int }}"
+      ignore_errors: true
+      when: rc_value_max
+
+    - name: Display rc_value
+      ansible.builtin.debug:
+        var: rc_value
+
+    - name: Display rc_line
+      ansible.builtin.debug:
+        var: rc_line
+
+    - name: Validation zowe error
+      ansible.builtin.set_fact:
+        rc_zowe_code: "{{ sysout_result.stdout_lines.split(':')[1] }}"
+      ignore_errors: true
+      when: sysout_result.stdout_lines is regex('error code :')
+
+    - name: Set exit variables if script failed
+      ansible.builtin.set_fact:
+        op_exec_rc: 401
+        op_short_msg: >-
+          {{
+            "Erreur lors de l'exécution du script %s : RC : %s - msg : %s - stderr : %s - stdout : %s"
+            % ( zowe_cmd_get_sysout_var, sysout_result.rc, sysout_result.msg | default(''), sysout_result.stderr | default(''), sysout_result.stdout | default(''))
+          }}
+
+      when: sysout_result.failed
+  rescue:
+
+    - name: Display ansible_failed_result
+      ansible.builtin.debug:
+        var:
+          ansible_failed_result
+
+    - name: Display ansible_failed_task
+      ansible.builtin.debug:
+        var:
+          ansible_failed_task
+
+    - name: Exit because assertion error
+      when:
+        ansible_failed_result.assertion is defined and ansible_failed_result.failed
+      ansible.builtin.set_fact:
+        op_exec_rc: 400
+        op_short_msg: "{{ 'Echec du test : ' + ansible_failed_result.assertion }}"
+
+    - name: Other error
+      when: op_exec_rc == 0
+      ansible.builtin.set_fact:
+        op_exec_rc: 400
+        op_short_msg: >-
+          {{
+            "Erreur d'exécution : %s"
+            % ( ansible_failed_result.msg | default(''))
+          }}
+
+    - name: Exit RC number of script param
+      when: sysout_result.stdout is regex('error code :\ 33')
+      ansible.builtin.set_fact:
+        op_exec_rc: 408
+
+    - name: Exit RC PDS not created
+      when: sysout_result.stdout is regex('error code :\ 34')
+      ansible.builtin.set_fact:
+        op_exec_rc: 409
+
+    - name: Exit RC No Sysout for job
+      when: sysout_result.stdout is regex('error code :\ 35')
+      ansible.builtin.set_fact:
+        op_exec_rc: 410
+
+    - name: Exit RC Keyring locked zowe error code 36
+      when: sysout_result.stdout is regex('error code :\ 36')
+      ansible.builtin.set_fact:
+        op_exec_rc: 420

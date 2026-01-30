@@ -1,0 +1,6 @@
+---
+- name: Import role
+  hosts: localhost
+  remote_user: root
+  roles:
+    - carebot.framework.common_files

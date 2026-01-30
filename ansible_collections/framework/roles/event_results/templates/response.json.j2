@@ -1,0 +1,31 @@
+{
+"requestId": "{{ request_id }}",
+"jobId": "{{tower_job_id}}",
+"closure_code": "{{ ticket_closure_code }}",
+"status": "{{ ticket_closure_code }}",
+"return_code": "{{ exec_rc | string }}",
+"escalade": "{{ escalade }}",
+"astreinte": "{{ astreinte }}",
+"ticket_creation": "{{ ticket_creation }}",
+"retour_pilote": "{{ retour_pilote }}",
+"Workflow_status": "{{ Workflow_status }}",}
+      
+{% if groupe_astreinte | default('') | length > 0 %}
+"groupe_astreinte": "{{ groupe_astreinte }}",
+{% endif %}
+
+{% if groupe_escalade | default('') | length > 0 %}
+"groupe_escalade": "{{ groupe_escalade }}",
+{% endif %}
+
+{% if short_msg | default('') | length > 0 %}
+"short_msg": "{{ short_msg }}",
+{% endif %}
+
+{% if long_msg | default('') | length > 0 %}
+"long_msg": "{{ long_msg }}",
+{% endif %}
+
+{% if long_msg2 | default('') | length > 0 %}
+"long_msg2": "{{ long_msg2 }}",
+{% endif %}

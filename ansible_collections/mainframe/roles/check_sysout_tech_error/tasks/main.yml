@@ -1,0 +1,145 @@
+---
+# tasks file for OAPS_prim_check_sysout_tech_error
+- name: Init values
+  ansible.builtin.set_fact:
+    op_exec_success: false
+    op_exec_changed: false
+    op_short_msg: ""
+    op_long_msg: ""
+    op_exec_rc: 0
+    sysout_tech_error_found_rc: ""
+
+- name: Start
+  block:
+    - name: Check all mandatory variables are defined
+      ansible.builtin.assert:
+        that:
+          - zowe_tech_error_file_base_name is defined
+          - zowe_cmd_get_sysout_var is defined
+          - zowe_chdir_var is defined
+          - code_SI is defined
+          - get_sysout_caisse is defined
+          - get_sysout_adid is defined
+          - get_sysout_jobidcare is defined
+    - name: Debug zowe_tech_error_file_base_name
+      ansible.builtin.debug:
+        var:
+          zowe_tech_error_file_base_name
+        verbosity: 1
+
+##############################################################
+    - name: Set errors file name
+      ansible.builtin.set_fact:
+        error_file_name: "{{ zowe_tech_error_file_base_name + code_SI + '.txt' }}"
+
+    - name: Debug file name
+      ansible.builtin.debug:
+        var:
+          error_file_name
+
+    - name: Load file in variable
+      ansible.builtin.set_fact:
+        z_tech_errors: "{{ lookup('ansible.builtin.file', error_file_name).split('\n') }}"
+
+    - name: Check z_tech_errors is set
+      ansible.builtin.assert:
+        that:
+          - z_tech_errors is defined
+
+    - name: Get sysout
+      ansible.builtin.include_role:
+        name: carebot.mainframe.get_sysout
+
+    - name: Fail if op_exec_rc is not 0 / dont change op_exec_rc - op_short_msg
+      when: op_exec_rc
+      ansible.builtin.fail:
+        msg:
+          msg: "{{ 'Fail execution oaps_prim_get_sysout : op_exec_rc : ' + op_exec_rc | string + ' - op_short_msg : ' + op_short_msg }}"
+
+    - name: Debug z_tech_errors
+      ansible.builtin.debug:
+        var:
+          z_tech_errors
+
+    - name: Debug sysout_result.stdout
+      ansible.builtin.debug:
+        var:
+          sysout_result.stdout
+
+    - name: Test if pattern found in sysout
+      carebot.mainframe.find_pattern:
+        sysout_errors_to_find: "{{ z_tech_errors }}"
+        sysout_to_check: "{{ sysout_result.stdout }}"
+      register: result
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg: >-
+          {{
+          "sysout_tech_error_found : %s - sysout_tech_error_line : %s - result : %s" % (sysout_tech_error_found, sysout_tech_error_line, result)
+          }}
+
+    - name: Test if pattern found RC
+      find_pattern:
+        sysout_errors_to_find: "{{ 'RC=' + code_rc | string }}"
+        sysout_to_check: "{{ sysout_result.stdout }}"
+      register: result_rc
+      when: code_rc != ''
+
+    - name: Display result_rc
+      ansible.builtin.debug:
+        msg: >-
+          {{
+          "sysout_tech_error_found_rc : %s - sysout_tech_error_line : %s - result_rc : %s" % (sysout_tech_error_found_rc, sysout_tech_error_line, result_rc)
+          }}
+      when: code_rc != ''
+
+    - name: Pattern found, so exit with error
+      ansible.builtin.set_fact:
+        op_exec_rc: 402
+        op_short_msg: "{{ sysout_tech_error_line | trim }}"
+      when: sysout_tech_error_found
+
+    - name: Pattern found RC, so exit with error
+      ansible.builtin.set_fact:
+        op_exec_rc: 403
+        op_short_msg: "{{ sysout_tech_error_line | trim }}"
+      when: sysout_tech_error_found_rc != '' and code_rc != ''
+
+  rescue:
+    - name: Display ansible_failed_result
+      ansible.builtin.debug:
+        var:
+          ansible_failed_result
+
+    - name: Display ansible_failed_task
+      ansible.builtin.debug:
+        var:
+          ansible_failed_task
+
+    - name: Display errors_file
+      ansible.builtin.debug:
+        var:
+          errors_file
+
+    - name: Exit because assertion error
+      when:
+        ansible_failed_result.assertion is defined and ansible_failed_result.failed
+      ansible.builtin.set_fact:
+        op_exec_rc: 400
+        op_short_msg: "{{ 'Echec du test : ' + ansible_failed_result.assertion }}"
+
+    # - name: Error file error
+    #   when: op_exec_rc == 0 and errors_file is defined and errors_file.failed
+    #   set_fact:
+    #     op_exec_rc: 400
+    #     op_short_msg: "{{ 'Echec de la lecture du fichier des erreurs : ' + errors_file.msg }}"
+
+    - name: Other error
+      when: op_exec_rc == 0
+      ansible.builtin.set_fact:
+        op_exec_rc: 400
+        op_short_msg: >-
+          {{
+          "Erreur d'exécution : %s" % (ansible_failed_result.msg | default(''))
+          }}

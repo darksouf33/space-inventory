@@ -1,0 +1,82 @@
+---
+- name: Set mandatory variables
+  ansible.builtin.set_fact:
+    request_id: "{{ requestId | default('') }}"
+
+- name: Set file names
+  block:
+    - name: Set file names
+      ansible.builtin.set_fact:
+        vars_fname: "{{ playbook_filepath + '/event/event_data.yml' }}"
+        tasks_fname: "{{ playbook_filepath + '/event/event_data_tasks.yml' }}"
+        control_fname: "{{ playbook_filepath + '/event/event_control.yml' }}"
+- name: Check mandatory variables
+  ansible.builtin.include_role:
+    name: carebot.framework.check_variables
+  vars:
+    check_variables_var_to_check: "{{ required_mandatory_event_variables | default([]) }}"
+
+- name: Get checkvar success
+  ansible.builtin.set_fact:
+    op_exec_success: "{{ checkvar_success }}"
+
+- name: Debug check variable for mandatory variables
+  ansible.builtin.debug:
+    var:
+      op_exec_success
+    verbosity: 1
+
+- name: Set results if Check mandatory variables is KO
+  when: not op_exec_success
+  block:
+    - name: Set results if KO
+      ansible.builtin.set_fact:
+        exec_rc: 200
+        short_msg: "{{ 'Execution failed - Extract event data stage: ' + checkvar_msg }}"
+        long_msg: "{{ 'Execution failed - Extract event data stage: ' + checkvar_msg }}"
+
+- name: Load event and control datas
+  when: op_exec_success
+  block:
+    - name: Get variables from event - vars format
+      ansible.builtin.include_vars: "{{ vars_fname }}"
+      when: vars_fname is file
+
+    - name: Get variables from event  - tasks format
+      ansible.builtin.include_tasks: "{{ tasks_fname }}"
+      when: tasks_fname is file
+
+    - name: Get controls
+      ansible.builtin.include_vars: "{{ control_fname }}"
+      when: control_fname is file
+
+    - name: Check variables stage 2
+      ansible.builtin.include_role:
+        name: carebot.framework.check_variables
+      vars:
+        check_variables_var_to_check: "{{ required_event_variables | default([]) }}"
+
+    - name: Debug check variable for stage 2 variables
+      ansible.builtin.debug:
+        var:
+          checkvar_success
+        verbosity: 1
+
+    - name: Set results if stage 2 is KO
+      when: not checkvar_success
+      block:
+        - name: Set results if stage 2 is KO
+          ansible.builtin.set_fact:
+            exec_rc: 200
+            short_msg: "{{ 'Execution failed - Extract event data stage : ' + checkvar_msg }}"
+            long_msg: "{{ 'Execution failed - Extract event data stage : ' + checkvar_msg }}"
+
+  rescue:
+    - name: Handle validation error
+      ansible.builtin.set_fact:
+        exec_rc: 200
+        short_msg: "{{ 'Execution failed - Extract event data stage: Unknown error' }}"
+        long_msg: "{{ 'Execution failed - Extract event data stage: Unknown error' }}"
+
+    - name: Clear host
+      ansible.builtin.meta: clear_host_errors

@@ -1,0 +1,19 @@
+---
+- name: Init results data
+  ansible.builtin.set_fact:
+    msg: Data Validation Error
+    short_msg: ""
+    long_msg: ""
+    long_msg2: ""
+    retour_pilote: "true"
+    escalade: "false"
+    groupe_escalade: ""
+    astreinte: "false"
+    groupe_astreinte: ""
+    ticket_creation: "false"
+    exec_rc: 0
+    exec_success: "false"
+    exec_changed: "false"
+    exec_message: Execution failed
+    tower_job_id: ansible
+    playbook_filepath: "{{ playbook_dir }}"

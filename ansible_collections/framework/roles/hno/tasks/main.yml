@@ -1,0 +1,80 @@
+---
+# tasks file for OAPS_frm_hno
+- name: Set default value for astreinte
+  ansible.builtin.set_fact:
+    hno: true
+
+- name: Test mode & HNO
+  ansible.builtin.set_fact:
+    hno: true
+  when: hno_local_only and hno_test_mode == 1
+
+- name: Test mode & non HNO
+  ansible.builtin.set_fact:
+    hno: false
+  when: hno_local_only and hno_test_mode == 0
+
+- name: Ask OAPSHub for HNO
+  when: not hno_local_only
+  block:
+    - name: Set body to send
+      ansible.builtin.set_fact:
+        body:
+          key: "{{ key }}"
+
+    - name: Call OAPSHub
+      ansible.builtin.uri:
+        url: "{{ oaps_hno_url }}"
+        method: GET
+        body: "{{ body | to_json }}"
+        body_format: json
+        return_content: true
+        headers:
+          Authorization: "Bearer {{ oaps_token }}"
+          Content-Type: application/json
+        validate_certs: "no"
+
+      register: uri_response
+      until: uri_response.status == 200
+      retries: 3
+      delay: 1
+
+      ignore_errors: true
+
+    - name: Debug result
+      ansible.builtin.debug:
+        var: uri_response
+
+    - name: Process if error with API
+      when: uri_response.status != 200
+      block:
+        - name: End play if response is not OK
+          ansible.builtin.set_fact:
+            short_msg: Execution failed - Invalid response from HNO API
+            long_msg: "Execution failed - Invalid response from HNO API (rc='{{ uri_response.status }}')"
+            retour_pilote: true
+            ticket_creation: false
+            exec_rc: 200
+
+        - name: Stop
+          ansible.builtin.meta: end_play
+
+    - name: Set astreinte if request OK
+      when: uri_response.status == 200
+      ansible.builtin.set_fact:
+        hno: "{{ uri_response.json.hno }}"
+
+- name: Set date
+  ansible.builtin.command: date +'%u'
+  register: weekday_number
+  environment:
+    TZ: Europe/Paris
+  changed_when: weekday_number != ""
+
+- name: Set hno true if week end
+  when: (weekday_number.stdout | int) == 6 or (weekday_number.stdout | int) == 7
+  ansible.builtin.set_fact:
+    hno: true
+- name: Debug result
+  ansible.builtin.debug:
+    var: weekday_number.stdout

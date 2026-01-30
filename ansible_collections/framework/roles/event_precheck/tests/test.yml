@@ -1,0 +1,6 @@
+---
+- name: Tests event percheck
+  hosts: localhost
+  remote_user: root
+  roles:
+    - carebot.framework.event_precheck

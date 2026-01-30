@@ -1,0 +1,15 @@
+---
+- name: Init datas
+  ansible.builtin.include_tasks: init_data.yml
+
+- name: Include tests datas
+  ansible.builtin.include_vars:
+    "{{ playbook_filepath + '/tests/test_vars.yml' }}"
+  when: testmode is defined and testmode | bool
+
+- name: Process event data
+  ansible.builtin.include_tasks: event_data.yml
+
+- name: Process config data
+  ansible.builtin.include_tasks: config_data.yml
+  when: exec_rc == 0

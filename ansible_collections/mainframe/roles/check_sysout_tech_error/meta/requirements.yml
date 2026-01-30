@@ -1,0 +1,10 @@
+---
+- src: https://scm.saas.cagip.group.gca/outils-data/carebot-project/oaps_ref_common_files.git
+  name: oaps_ref_common_files
+  scm: git
+  version: main
+
+- src: https://scm.saas.cagip.group.gca/outils-data/carebot-project/oaps_prim_get_sysout.git
+  name: oaps_prim_get_sysout
+  scm: git
+  version: main

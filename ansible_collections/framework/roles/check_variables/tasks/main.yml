@@ -1,0 +1,44 @@
+---
+# tasks file for roles/check_variables
+- name: Init value
+  ansible.builtin.set_fact:
+    op_exec_success: true
+    error_found: false
+
+- name: Check if required informations were provided
+  ansible.builtin.assert:
+    that:
+      - "{{ item }}"
+    fail_msg: "variable {{ item }} didn't pass"
+    success_msg: "variable {{ item }} passed"
+  loop: "{{ check_variables_var_to_check }}"
+  loop_control:
+    label: "checking {{ item }}"
+  register: assert_infos
+  ignore_errors: true
+
+- name: Debug assertions results
+  ansible.builtin.debug:
+    var: assert_infos
+    verbosity: 1
+
+- name: Work with multiple results
+  when: assert_infos.results is defined
+  block:
+    - name: Loop assertions
+      ansible.builtin.set_fact:
+        error_found: true
+        msg: "{{ msg | default('Data Validation Error') + ' - ' + item.msg }}"
+      when: item.failed
+      loop: "{{ assert_infos.results }}"
+
+- name: Debug variable error_found
+  ansible.builtin.debug:
+    var:
+      error_found
+    verbosity: 1
+
+- name: Evaluate success
+  ansible.builtin.set_fact:
+    op_exec_success: "{{ false if error_found else true }}"
+    op_short_msg: "{{ msg | default('') }}"

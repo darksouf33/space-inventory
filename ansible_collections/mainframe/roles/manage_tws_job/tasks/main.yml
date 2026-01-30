@@ -1,0 +1,138 @@
+---
+# tasks file for oaps_prim_manage_tws_job
+- name: Init values # noqa: yaml[colons]
+  ansible.builtin.set_fact:
+    op_exec_success: false
+    op_exec_changed: false
+    op_short_msg: ""
+    op_long_msg: ""
+    op_exec_rc: 0
+    rc_zowe_code: ""
+##################################################################################################
+- name: Start
+  block:
+    - name: Check all mandatory variables are defined
+      ansible.builtin.assert:
+        that:
+          - zowe_cmd_TWS_manage_var is defined
+          - zowe_chdir_var is defined
+          - tws_manage_caisse is defined
+          - tws_manage_adid is defined
+          - tws_manage_opc is defined
+          - tws_manage_iat is defined
+          - tws_manage_status is defined and ( tws_manage_status == 'RESTART' or tws_manage_status == 'COMPLETE' )
+          - tws_manage_opno is defined
+
+    - name: Evaluate status to send
+      ansible.builtin.set_fact:
+        tws_manage_status_param: "{% if tws_manage_status == 'RESTART' %}R{% else %}C{% endif %}"
+
+    - name: Display status # noqa: yaml[colons]
+      ansible.builtin.debug:
+        var:
+          tws_manage_status_param
+
+    - name: Launch script
+      ansible.builtin.shell:
+        cmd: "source /home/zoweadm/.zowe_profile && {{ zowe_cmd_TWS_manage_var }} {{ tws_manage_caisse }} {{ tws_manage_adid }} {{ tws_manage_opc }} {{ tws_manage_opno }} {{ tws_manage_iat }} {{ tws_manage_status_param }} {{ found_ip }}" # noqa: yaml[line-length]
+      args:
+        chdir: "{{ zowe_chdir_var }}"
+      register:
+        tws_manage_result
+      ignore_errors: true
+
+    - ansible.builtin.debug:
+        var:
+          tws_manage_result
+
+    - name: RC value
+      ansible.builtin.set_fact:
+        rc_value1: "{{ tws_manage_result.stdout_lines | regex_search('RC=(\\d+)', '\\1') }}"
+        rc_line: "{{ tws_manage_result.stdout_lines | regex_search('(^.*RC=\\d+.*)', '\\1', multiline=True) }}"
+
+    - name: RC validation
+      ansible.builtin.set_fact:
+        rc_value: "{{ rc_value1[0] | int }}"
+      ignore_errors: true
+
+    - name: Validation zowe error
+      ansible.builtin.set_fact:
+        rc_zowe_code: "{{ tws_manage_result.stdout_lines.split(':')[1] }}"
+      when: tws_manage_result.stdout_lines is regex('error code :')
+
+    - name: Display rc_value
+      ansible.builtin.debug:
+        var:
+          rc_value
+
+    - name: Display rc_line
+      ansible.builtin.debug:
+        var:
+          rc_line
+    - name: Exit RC number of script param zowe error code 33
+      when: rc_zowe_code == 33
+      ansible.builtin.set_fact:
+        op_exec_rc: 408
+
+    - name: Exit RC PDS not created zowe error code 34
+      when: rc_zowe_code == 34
+      ansible.builtin.set_fact:
+        op_exec_rc: 409
+
+    - name: Exit RC No Sysout for job zowe error code 35
+      when: rc_zowe_code == 35
+      ansible.builtin.set_fact:
+        op_exec_rc: 410
+
+    - name: Exit RC Keyring locked zowe error code 36
+      when: rc_zowe_code == 36
+      ansible.builtin.set_fact:
+        op_exec_rc: 420
+
+    - name: Rc_value > 04 soumision failed
+      when: rc_value|int > 4
+      ansible.builtin.set_fact:
+        op_exec_rc: 430
+
+    - name: Display op_exec_rc
+      ansible.builtin.debug:
+        var:
+          op_exec_rc
+
+    - name: Set exit variables if script could not be launched
+      ansible.builtin.set_fact:
+        op_exec_rc: 401
+        op_short_msg: >-
+          {{
+            "Erreur lors de l'exécution du script %s : RC : %s - msg : %s - stderr : %s - stdout : %s"
+            % ( zowe_cmd_TWS_manage_var, tws_manage_result.rc, tws_manage_result.msg | default(''), tws_manage_result.stderr | default(''), tws_manage_result.stdout | default(''))
+          }}
+      when: tws_manage_result.failed
+
+  rescue:
+    - name: Display ansible_failed_result
+      ansible.builtin.debug:
+        var:
+          ansible_failed_result
+
+    - name: Display ansible_failed_task
+      ansible.builtin.debug:
+        var:
+          ansible_failed_task
+
+    - name: Exit because assertion error
+      when:
+        ansible_failed_result.assertion is defined and ansible_failed_result.failed
+      ansible.builtin.set_fact:
+        op_exec_rc: 400
+        op_short_msg: "{{ 'Le rôle oaps_prim_manage_tws_job ne peut pas être lancé. Echec du test : ' + ansible_failed_result.assertion }}"
+
+    - name: Other error
+      when: op_exec_rc == 0
+      ansible.builtin.set_fact:
+        op_exec_rc: 400
+        op_short_msg: >-
+          {{
+            "Erreur d'exécution : %s"
+            % ( ansible_failed_result.msg | default(''))
+          }}

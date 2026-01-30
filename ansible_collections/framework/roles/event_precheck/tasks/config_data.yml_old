@@ -1,0 +1,41 @@
+- name : Set file names
+  block:
+
+    - name: set file names
+      set_fact:
+        vars_fname: '{{ playbook_filepath + "/config/config_data.yml" }}'
+        tasks_fname: '{{ playbook_filepath + "/config/config_data_tasks.yml" }}'
+        schema_file: '{{ playbook_filepath + "/config/config_schema.yml" }}'
+ 
+    - name : Check if variables are valid
+      block:
+    
+        - name: Get variables from file vars
+          include_vars: "{{ fname }}"
+          when: vars_fname is file
+
+        - name: Get variables from file tasks
+          include_tasks: "{{ fname }}"
+          when: tasks_fname is file
+
+        - name: Test target datas
+          schema_valid:
+            schema_file: "{{ schema_file }}"
+          register: config_validation_out
+
+        - name: Debug validation
+          debug:
+            var:
+              config_validation_out
+
+      when: schema_file is file
+
+  rescue:
+  - name: Handle validation error
+    set_fact:
+      exec_rc: 201
+      short_msg: "{{ 'Execution failed - Config data stage : ' + config_validation_out.msg | default('Erreur non identifiée')}}"
+
+
+
+

@@ -1,0 +1,6 @@
+---
+# vars file for OAPS_frm_event_precheck
+event_precheck_required_mandatory_event_variables:
+  - event_data is defined
+  - request_id | default('') |  length > 0
+  - notification_url | default('') |  length > 0
